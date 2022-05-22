@@ -1,9 +1,9 @@
-#include <SPI.h>
+//#include <SPI.h>
 #include <Ethernet.h>
 #include "ph_grav.h"             
 Gravity_pH pH = Gravity_pH(A0);  
-#include "rtd_grav.h"
-Gravity_RTD RTD = Gravity_RTD(A1);
+//#include "rtd_grav.h"
+//Gravity_RTD RTD = Gravity_RTD(A1);
 #include "orp_grav.h"
 Gravity_ORP ORP = Gravity_ORP(A2);
 
@@ -13,7 +13,7 @@ byte mac[] = {
   0xDE, 0xAD, 0xBE, 0xEF, 0xFE, 0xED
 };
 IPAddress ip(10, 1, 80, 200);
-EthernetServer server(80);
+//EthernetServer server(80);
 
                 
 
@@ -55,19 +55,19 @@ void parse_cmd(char* string) {
       }
     }
   }
-  if(cmd.startsWith("RTD")){
-    int index = cmd.indexOf(',');
-    if(index != -1){
-      String param = cmd.substring(index+1, cmd.length());
-      if(param.equals("CLEAR")){
-        RTD.cal_clear();
-        Serial.println("RTD CALIBRATION CLEARED");
-      }else {
-        RTD.cal(param.toFloat());
-        Serial.println("RTD CALIBRATED");
-      }
-    }
-  }
+//  if(cmd.startsWith("RTD")){
+//    int index = cmd.indexOf(',');
+//    if(index != -1){
+//      String param = cmd.substring(index+1, cmd.length());
+//      if(param.equals("CLEAR")){
+//        RTD.cal_clear();
+//        Serial.println("RTD CALIBRATION CLEARED");
+//      }else {
+//        RTD.cal(param.toFloat());
+//        Serial.println("RTD CALIBRATED");
+//      }
+//    }
+//  }
 }
 
 void setup() {
@@ -90,14 +90,76 @@ void setup() {
     Serial.println("Ethernet cable is not connected.");
   }
   // start the server
-  server.begin();
+//  server.begin();
   Serial.print("server is at ");
   Serial.println(Ethernet.localIP());
 }
 
 
 void loop() {
-  if (Serial.available() > 0) {
+
+   String json = "{ \"ph\": " + String(pH.read_ph()) + ", \"temperature\": 0, \"orp\": " + String((int) ORP.read_orp()) + " }";
+   Serial.println(json);
+   Serial.println("Try REST");
+
+  EthernetClient client;
+  if (client.connect("www.vhlst.nl",80)) { // REPLACE WITH YOUR SERVER ADDRESS
+//    client.println("POST /api/webhook/CAznu0dJ9Vs6lHZjeeJwYwTXjcP6Q356 HTTP/1.1");//REPLACE WITH YOUR URLS
+    client.println("POST /lay-z-spa/input.php HTTP/1.1");//REPLACE WITH YOUR URLS
+    client.println("Host: vhlst.nl");
+    client.println("Content-Type: application/json");
+    client.println("User-Agent: Lay-Z-Spa");
+    client.println("Connection: keep-alive");
+    client.println("Content-Length:" + String((int) json.length()));
+  Serial.println("Content-Length:" + String((int) json.length()));
+    client.println();
+    client.print(json);
+    
+    client.flush();
+    client.stop();
+
+    Serial.println("Sent to url");
+    
+    delay(1000);
+  }
+
+
+   
+  // listen for incoming clients
+//  EthernetClient client = server.available();
+//  if (client) {
+//    Serial.println("new client");
+//    // an http request ends with a blank line
+//    boolean currentLineIsBlank = true;
+//    while (client.connected()) {
+//      if (client.available()) {
+//        char c = client.read();
+//        //Serial.write(c);
+//        String json = "{ \"ph\": " + String(pH.read_ph()) + ", \"temperature\": 0, \"orp\": " + String((int) ORP.read_orp()) + " }";
+//        
+//        if (c == '\n' && currentLineIsBlank) {
+//          // send a standard http response header
+//          client.println("HTTP/1.1 200 OK");
+//          client.println("Content-Type: application/json");
+//          client.println("Connection: close");  // the connection will be closed after completion of the response
+//          client.println();
+//           // Serial.println((int)ORP.read_orp());
+//            client.println(json);
+//          break;
+//        }
+//        if (c == '\n') {
+//          currentLineIsBlank = true;
+//        } else if (c != '\r') {
+//          currentLineIsBlank = false;
+//        }
+//      }
+//    }
+//    delay(1);
+//    client.stop();
+//    Serial.println("client disconnected");
+//  }
+
+    if (Serial.available() > 0) {
     user_bytes_received = Serial.readBytesUntil(13, user_data, sizeof(user_data));
   }
 
@@ -105,39 +167,5 @@ void loop() {
     parse_cmd(user_data);
     user_bytes_received = 0;
     memset(user_data, 0, sizeof(user_data));
-  }
-
-  // listen for incoming clients
-  EthernetClient client = server.available();
-  if (client) {
-    Serial.println("new client");
-    // an http request ends with a blank line
-    boolean currentLineIsBlank = true;
-    while (client.connected()) {
-      if (client.available()) {
-        char c = client.read();
-        Serial.write(c);
-        String json = "{ \"ph\": " + String(pH.read_ph()) + ", \"temperature\":" + String(RTD.read_RTD_temp_C()) + ", \"orp\": " + String((int) ORP.read_orp()) + " }";
-        
-        if (c == '\n' && currentLineIsBlank) {
-          // send a standard http response header
-          client.println("HTTP/1.1 200 OK");
-          client.println("Content-Type: application/json");
-          client.println("Connection: close");  // the connection will be closed after completion of the response
-          client.println();
-            Serial.println((int)ORP.read_orp());
-            client.println(json);
-          break;
-        }
-        if (c == '\n') {
-          currentLineIsBlank = true;
-        } else if (c != '\r') {
-          currentLineIsBlank = false;
-        }
-      }
-    }
-    delay(1);
-    client.stop();
-    Serial.println("client disconnected");
   }
 }
